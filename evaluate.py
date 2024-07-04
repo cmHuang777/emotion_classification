@@ -15,13 +15,6 @@ test_data_path = {
     "energy_reddit": "data/energy/responses/full_energy.csv"
 }
 
-# {
-#     "EmoryNLP": ["joyful", "mad", "peaceful", "neutral", "sad", "powerful", "scared"],
-#     "iemocap": ["happy", "sad", "neutral", "angry", "excited", "frustrated"],
-#     "meld": ["neutral", "surprise", "fear", "sad", "joyful", "disgust", "angry"],
-#     "mixed": ["joyful", "sad", "neutral", "mad", "excited", "fear", "disgust", "peaceful", "powerful"],
-# }
-
 emotion_labels = ["happiness", "anger", "disgust", "fear", "sadness", "surprise", "other"]
 sentiment_labels = ["positive", "negative", "neutral"]
 
@@ -56,29 +49,6 @@ def evaluate(y_true, y_pred, labels):
     class_report = classification_report(y_true=y_true, y_pred=y_pred, digits=5, labels=labels, 
                                          zero_division=0.0, output_dict=True)
     return class_report
-
-
-# def evaluate(data, target_labels):
-#     y_true, y_pred = [], []
-    
-#     for d in data:
-#         y_true.append(d["emotion"])
-#         y_pred.append(d["prediction"])
-        
-#     print("y_true:", len(y_true), Counter(y_true))
-#     print("y_pred:", len(y_pred), Counter(y_pred))
-
-#     print(classification_report(y_true, y_pred, digits=5, labels=target_labels, zero_division=0.0))
-    
-#     rpt_dict = classification_report(
-#         y_true, y_pred, 
-#         digits=4, 
-#         labels=target_labels, 
-#         output_dict=True, 
-#         zero_division=0.0
-#     )
-    
-#     return rpt_dict
 
 
 def batch_evaluation():

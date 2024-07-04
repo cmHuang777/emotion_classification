@@ -1,32 +1,13 @@
 import json
-from pathlib import Path
 from string import punctuation
 import time
 import requests
 import spacy
-import numpy as np
 import pandas as pd
 import os
-from tqdm import tqdm
-import bitsandbytes as bnb
-import torch
-import torch.nn as nn
-import transformers
 from datasets import Dataset, DatasetDict, load_dataset
-from peft import LoraConfig, PeftModel, PeftConfig, prepare_model_for_kbit_training
-from trl import SFTTrainer
-from trl import setup_chat_format
-from transformers import (AutoModelForCausalLM, 
-                          LlamaForCausalLM,
-                          AutoTokenizer, 
-                          BitsAndBytesConfig, 
-                          TrainingArguments, 
-                          pipeline, 
-                          logging)
+from transformers import AutoTokenizer, pipeline
 from transformers.pipelines.pt_utils import KeyDataset
-from sklearn.metrics import (accuracy_score, 
-                             classification_report, 
-                             confusion_matrix)
 from sklearn.model_selection import train_test_split
 from datetime import datetime
 import csv

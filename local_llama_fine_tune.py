@@ -1,5 +1,7 @@
 import os
 from string import punctuation
+
+import spacy
 os.environ["CUDA_VISIBLE_DEVICES"] = "3,4,5"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -83,7 +85,8 @@ def generate_emotion_and_sentiment_prompt(text):
 
 def extract_label(generated_text, target_labels):
     """Extract from the generated text the first label that is defined in the set of target labels"""
-    tokens = generated_text.split()
+    nlp = spacy.load("en_core_web_sm")
+    tokens = [token.text for token in nlp(generated_text)]
     for token in tokens:
         token = token.strip(punctuation)
         if token.lower() in target_labels:
@@ -289,7 +292,7 @@ device = "cuda"
 cache_dir = "cache/llama3_70B"
 model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 
-compute_dtype = getattr(torch, "float16")
+compute_dtype = getattr(torch, "bfloat16")
 
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True, 
@@ -307,7 +310,7 @@ model = AutoModelForCausalLM.from_pretrained(
     cache_dir=cache_dir,
 )
 
-prepare_model_for_kbit_training(model=model)
+model = prepare_model_for_kbit_training(model=model)
 
 # model.to(device)
 model.config.use_cache = False
@@ -348,8 +351,8 @@ training_arguments = TrainingArguments(
     logging_steps=10,                         # log every 10 steps
     learning_rate=2e-4,                       # learning rate, based on QLoRA paper
     weight_decay=0.001,
-    fp16=True,
-    bf16=False,
+    fp16=False,
+    bf16=True,
     max_grad_norm=0.3,                        # max gradient norm based on QLoRA paper
     max_steps=-1,
     warmup_ratio=0.03,                        # warmup ratio based on QLoRA paper
