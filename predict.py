@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 from datetime import datetime
 from pathlib import Path
 from peft import PeftModel, PeftConfig
@@ -8,7 +8,7 @@ from transformers import (LlamaForCausalLM,
 from transformers.pipelines.pt_utils import KeyDataset
 import torch
 
-from utils import csv_to_dataset, get_dataset_name, init_tokenizer, extract_label, pred_arrays_to_csv
+from utils import csv_to_dataset, get_dataset_name, init_tokenizer, extract_label, pred_arrays_to_csv, str2bool
 
 
 def init_model(model_name, cache_dir):
@@ -101,7 +101,7 @@ def predict(model, tokenizer, ds, max_new_tokens, temperature=0.6, repetition_pe
         for out in pipe(KeyDataset(ds, "emotion_and_sentiment_prompt"), batch_size=BATCH_SIZE, return_full_text=False):
             if counter >= MAX_ROW: break
             t_delta = (datetime.now()-last_time).total_seconds()*1000
-            # print("Time elapsed (ms): ", t_delta)
+            # print("Time elapsed (ms): ", t_delta, " row:", counter)
             # print(out)
             raw = out[0]["generated_text"]
             llama3_sentiment = extract_label(raw, target_labels=["positive", "negative", "neutral"])
@@ -118,7 +118,7 @@ def predict(model, tokenizer, ds, max_new_tokens, temperature=0.6, repetition_pe
         for out in pipe(KeyDataset(ds, "emotion_prompt"), batch_size=BATCH_SIZE, return_full_text=False):
             if counter >= MAX_ROW: break
             t_delta = (datetime.now()-last_time).total_seconds()*1000
-            # print("Time elapsed (ms): ", t_delta)
+            # print("Time elapsed (ms): ", t_delta, " row:", counter)
             # print(out)
             raw = out[0]["generated_text"]
             llama3_emotion = extract_label(raw, target_labels=["happiness", "anger", "disgust", "fear", "sadness", "surprise", "other"])
@@ -133,7 +133,7 @@ def predict(model, tokenizer, ds, max_new_tokens, temperature=0.6, repetition_pe
         for out in pipe(KeyDataset(ds, "sentiment_prompt"), batch_size=BATCH_SIZE, return_full_text=False):
             if counter >= MAX_ROW: break
             t_delta = (datetime.now()-last_time).total_seconds()*1000
-            # print("Time elapsed (ms): ", t_delta)
+            # print("Time elapsed (ms): ", t_delta, " row:", counter)
             # print(out)
             raw = out[0]["generated_text"]
             llama3_sentiment = extract_label(raw, target_labels=["positive", "negative", "neutral"])
@@ -155,8 +155,10 @@ if __name__ == "__main__":
     parser.add_argument("--max_new_tokens", type=int, help="Max number of new generated tokens")
     parser.add_argument("--temperature", type=float, help="Temperature for text generation")
     parser.add_argument("--repetition_penalty", type=float, help="Penalty for repeated text in text generated")
-    parser.add_argument("--combine_prompts", type=bool, help="Whether to combine emotion and sentiment prompt as a single prompt")
-    parser.add_argument("--few_shots", type=bool, help="Whether to use 3 examples in the prompts")
+    parser.add_argument("--combine_prompts", type=str2bool, nargs='?',
+                        const=True, default=True, help="Whether to combine emotion and sentiment prompt as a single prompt")
+    parser.add_argument("--few_shots", type=str2bool, nargs='?',
+                        const=True, default=True, help="Whether to use 3 examples in the prompts")
     args = parser.parse_args()
     
     model_dir = Path(args.model)
@@ -165,8 +167,9 @@ if __name__ == "__main__":
     max_new_tokens = args.max_new_tokens if args.max_new_tokens else 50
     temperature = args.temperature if args.temperature else 0.6     # deafult temperature=0.6 in generation config
     repetition_penalty = args.repetition_penalty if args.repetition_penalty else 1  # default 1 gives no penalty for repetition
-    combine_prompts = args.combine_prompts if args.combine_prompts else True
-    few_shots = args.few_shots if args.few_shots else True
+    combine_prompts = args.combine_prompts if args.combine_prompts is not None else True
+    few_shots = args.few_shots if args.few_shots is not None else True
+    # print(args)
 
     if args.output:
         output_dir = Path(args.output)
@@ -191,4 +194,4 @@ if __name__ == "__main__":
     
 
 ## CUDA_VISIBLE_DEVICES=5 python predict.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data data/drone/masked_all_tweets.csv 
-## CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1
+## CUDA_VISIBLE_DEVICES=3 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=5 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False

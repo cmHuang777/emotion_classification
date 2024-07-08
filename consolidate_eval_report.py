@@ -12,8 +12,9 @@ metrics = {
 
 if __name__ == "__main__":
     
-    output_filepath = Path("output/consolidated_report.csv")
-    
+    emotion_output_filepath = Path("output/consolidated_emotion_report.csv")
+    sentiment_output_filepath = Path("output/consolidated_sentiment_report.csv")
+
     # Generate a new consolidated report based on latest evaluations. Overwrite any old report.
     consolidated_emotion_report_list = []
     consolidated_sentiment_report_list = []
@@ -74,14 +75,16 @@ if __name__ == "__main__":
     # print(consolidated_report_sorted)
     
     pd.DataFrame(consolidated_emotion_report_sorted).to_csv(
-        output_filepath, 
+        emotion_output_filepath, 
         columns=["dataset", "model_id", "generation_config", "metric", "score"]
     )
+    print(f"Done. Emotion report saved to {emotion_output_filepath}")
+
     pd.DataFrame(consolidated_sentiment_report_sorted).to_csv(
-        output_filepath, 
+        sentiment_output_filepath, 
         columns=["dataset", "model_id", "generation_config", "metric", "score"]
     )
-    print(f"Done. Report saved to {output_filepath}")
+    print(f"Done. Sentiment report saved to {sentiment_output_filepath}")
 
 
 """python consolidate_eval_report.py"""

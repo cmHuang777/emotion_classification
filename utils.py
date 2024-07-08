@@ -287,3 +287,15 @@ def init_tokenizer(model_name, cache_dir, padding="left"):
 
 def get_dataset_name(dataset_path):
     return dataset_path.split("/")[-1].split(".")[0]
+
+
+# for parsing boolean values in predict function
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ValueError('Boolean value expected.')

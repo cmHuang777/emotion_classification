@@ -12,7 +12,9 @@ nlp = spacy.load("en_core_web_sm")
 test_data_path = {
     "drone_tweets": "data/drone/responses/all_tweets_full_responses.csv",
     "drone_reddit": "data/drone/responses/drone5_all_data.csv",
-    "energy_reddit": "data/energy/responses/full_energy.csv"
+    "energy_reddit": "data/energy/responses/full_energy.csv",
+    "tweet_eval_emotion": "data/tweet_eval/emotion/test.csv",
+    "tweet_eval_sentiment": "data/tweet_eval/emotion/test.csv"
 }
 
 emotion_labels = ["happiness", "anger", "disgust", "fear", "sadness", "surprise", "other"]
@@ -63,9 +65,10 @@ def batch_evaluation():
                 
                 for item in model.iterdir():
                     pred_file = Path(item / "predictions.csv")
-                    report_file = Path(item / "report.json")
+                    emotion_report_file = Path(item / "emotion_report.json")
+                    sentiment_report_file = Path(item / "sentiment_report.json")
                                     
-                    if pred_file.exists() and not report_file.exists():
+                    if pred_file.exists() and not emotion_report_file.exists() and not sentiment_report_file.exists():
                         print("pred_file:", pred_file)
                         # continue
                         

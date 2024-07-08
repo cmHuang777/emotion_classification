@@ -133,10 +133,6 @@ def train(configs, output_dir):
     )
 
     trainer.train()
-    # except RuntimeError as e:
-    #     print(f"Runtime error: {e}")
-    #     print(f"CUDA error: {torch.cuda.get_device_properties(0)}")
-    #     return
     
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -161,4 +157,4 @@ if __name__ == "__main__":
     train(configs, output_dir)
     
     
-"""CUDA_VISIBLE_DEVICES=3,4 CUDA_LAUNCH_BLOCKING=1 python train.py -c training_configs/tweet_eval-emotion-1.0-lora.json | tee checkpoint/tweet_eval_emotion.log.txt"""
+"""CUDA_VISIBLE_DEVICES=1,2 CUDA_LAUNCH_BLOCKING=1 python train.py -c training_configs/tweet_eval-emotion-1.0-lora-epoch=3.json | tee checkpoint/tweet_eval-emotion-1.0-lora-epoch=3/tweet_eval_emotion.log.txt"""
