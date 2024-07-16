@@ -1,0 +1,55 @@
+pred_file: output/drone_tweets/Meta-Llama-3-8B-Instruct/max_new_toks=30-temp=0.01-rep_pen=1.2-combine_prompts=False-few_shots=True/predictions.csv
+Accuracy: 0.63055
+Accuracy for label happiness: 0.90000
+Accuracy for label anger: 0.97872
+Accuracy for label disgust: 0.01471
+Accuracy for label fear: 0.19231
+Accuracy for label sadness: 0.33333
+Accuracy for label surprise: 0.22034
+Accuracy for label other: 0.65256
+
+Confusion Matrix:
+[[  45    2    0    0    0    0    3]
+ [   0   46    0    0    1    0    0]
+ [   2   58    1    1    2    0    4]
+ [   0   17    1    5    2    0    1]
+ [   1    1    0    0    2    0    2]
+ [  10   18    1    1    0   13   15]
+ [ 226  408    8   43   22   58 1465]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+   happiness    0.15845   0.90000   0.26946        50
+       anger    0.08364   0.97872   0.15410        47
+     disgust    0.09091   0.01471   0.02532        68
+        fear    0.10000   0.19231   0.13158        26
+     sadness    0.06897   0.33333   0.11429         6
+    surprise    0.18310   0.22034   0.20000        59
+       other    0.98322   0.65256   0.78447      2245
+
+   micro avg    0.63461   0.63055   0.63257      2501
+   macro avg    0.23833   0.47028   0.23989      2501
+weighted avg    0.89532   0.63055   0.71951      2501
+
+Accuracy: 0.70492
+Accuracy for label positive: 0.87440
+Accuracy for label negative: 0.80494
+Accuracy for label neutral: 0.66490
+
+Confusion Matrix:
+[[ 181    8   16]
+ [  29  326   45]
+ [ 313  311 1256]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+    positive    0.34608   0.87440   0.49589       207
+    negative    0.50543   0.80494   0.62095       405
+     neutral    0.95368   0.66490   0.78353      1889
+
+   micro avg    0.70946   0.70492   0.70718      2501
+   macro avg    0.60173   0.78141   0.63346      2501
+weighted avg    0.83080   0.70492   0.73340      2501
+
