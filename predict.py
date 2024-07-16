@@ -8,7 +8,7 @@ from transformers import (LlamaForCausalLM,
 from transformers.pipelines.pt_utils import KeyDataset
 import torch
 
-from utils import csv_to_dataset, get_dataset_name, init_tokenizer, extract_label, pred_arrays_to_csv, str2bool
+from utils import csv_to_dataset, get_dataset_name, init_tokenizer, extract_label, pred_arrays_to_csv, str2bool, transform_text
 
 
 def init_model(model_name, cache_dir):
@@ -71,14 +71,7 @@ def init_model(model_name, cache_dir):
 
     return model
 
-def predict(model, tokenizer, ds, max_new_tokens, temperature=0.6, repetition_penalty=1, combine_prompts=True):
-    """
-    Predicts using the model and tokenizer, with input dataset and other settings.
-    Returns 2 arrays, first one is raw output, 
-            second one with extracted emotion and sentiment.
-    """
-
-    BATCH_SIZE = 32
+def init_pipeline(model, tokenizer, max_new_tokens, temperature=0.6, repetition_penalty=1):
     pipe = pipeline(
         task="text-generation", 
         model=model, 
@@ -88,6 +81,26 @@ def predict(model, tokenizer, ds, max_new_tokens, temperature=0.6, repetition_pe
         temperature=temperature,
         repetition_penalty=repetition_penalty
     )
+
+    return pipe
+
+def predict(pipe, ds, combine_prompts=True):
+    """
+    Predicts using the model and tokenizer, with input dataset and other settings.
+    Returns 2 arrays, first one is raw output, 
+            second one with extracted emotion and sentiment.
+    """
+
+    BATCH_SIZE = 32
+    # pipe = pipeline(
+    #     task="text-generation", 
+    #     model=model, 
+    #     tokenizer=tokenizer,
+    #     max_new_tokens=max_new_tokens,
+    #     device_map="auto",
+    #     temperature=temperature,
+    #     repetition_penalty=repetition_penalty
+    # )
 
     counter = 0
     MAX_ROW = 99999999999  # for partial predictions/testing
@@ -159,6 +172,8 @@ if __name__ == "__main__":
                         const=True, default=True, help="Whether to combine emotion and sentiment prompt as a single prompt")
     parser.add_argument("--few_shots", type=str2bool, nargs='?',
                         const=True, default=True, help="Whether to use 3 examples in the prompts")
+    parser.add_argument("--include_roles", type=str2bool, nargs='?', 
+                        const=True, default=False, help="Whether to use system-user roles format for prompting")
     args = parser.parse_args()
     
     model_dir = Path(args.model)
@@ -169,6 +184,7 @@ if __name__ == "__main__":
     repetition_penalty = args.repetition_penalty if args.repetition_penalty else 1  # default 1 gives no penalty for repetition
     combine_prompts = args.combine_prompts if args.combine_prompts is not None else True
     few_shots = args.few_shots if args.few_shots is not None else True
+    include_roles = args.include_roles if args.include_roles is not None else False
     # print(args)
 
     if args.output:
@@ -176,22 +192,28 @@ if __name__ == "__main__":
     else:
         # output_dir = model_dir
         dataset_name = get_dataset_name(test_path)
-        output_dir = Path(f"output/{dataset_name}/{model_id}/max_new_toks={max_new_tokens}-temp={temperature}-rep_pen={repetition_penalty}-combine_prompts={combine_prompts}-few_shots={few_shots}")
+        output_dir = Path(
+            f"output/{dataset_name}/{model_id}/max_new_toks={max_new_tokens}-temp={temperature}"
+            f"-rep_pen={repetition_penalty}-combine_prompts={combine_prompts}-few_shots={few_shots}"
+            f"-include_roles={include_roles}"
+        )
     
     output_dir.mkdir(exist_ok=True, parents=True)
     cache_dir = "cache/" + model_id
     model = init_model(model_dir, cache_dir)
     tokenizer = init_tokenizer(model_dir, cache_dir)
+    print(model_dir, cache_dir)
     ds = csv_to_dataset(test_path, few_shots=few_shots)
+    ds = ds.map(lambda x: transform_text(x, include_roles=include_roles, few_shots=few_shots))
     outfile1 = str(output_dir) + "/raw.csv"
     outfile2 = str(output_dir) + "/predictions.csv"
     # print("outfile1:", outfile1)
     # print("out_dir name:", output_dir)
 
-    raws, predictions = predict(model, tokenizer, ds, max_new_tokens, 
-                               temperature, repetition_penalty, combine_prompts)
+    pipe = init_pipeline(model, tokenizer, max_new_tokens, temperature, repetition_penalty)
+    raws, predictions = predict(pipe, ds, combine_prompts)
     pred_arrays_to_csv(test_path, outfile1, outfile2, raws, predictions)
     
 
 ## CUDA_VISIBLE_DEVICES=5 python predict.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data data/drone/masked_all_tweets.csv 
-## CUDA_VISIBLE_DEVICES=3 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=5 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False
+## CUDA_VISIBLE_DEVICES=5 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False

@@ -22,7 +22,54 @@ from peft.utils.constants import TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPP
 
 from argparse import ArgumentParser
 
-from utils import csv_to_dataset
+from utils import csv_to_dataset, put_in_role_msg
+
+EMOTION_CONTEXT = """
+            You are an emotional classifier for online social media text.
+            Analyze the emotion of the text enclosed in angle brackets, 
+            determine if it is {labels} emotion, and 
+            return the answer as the corresponding emotion label {labels}.
+        
+        """
+
+SENTIMENT_CONTEXT = """
+            You are a sentiment classifier for online social media text.
+            Analyze the sentiment of the text enclosed in angle brackets, 
+            determine if it is {labels}, and 
+            return the answer as the corresponding sentiment label {labels}.
+        
+        """
+
+EMOTION_SENTIMENT_CONTEXT = """
+            You are an emotion and sentiment classifier for online social media text.
+            Analyze the emotion and sentiment of the text enclosed in angle brackets. 
+            For emotion, determine if it is {emotion_labels} emotion.
+            For sentiment, determine if it is {sentiment_labels} sentiment.
+            Return the answer as "emotion" "sentiment" where emotion is from the corresponding emotion label {emotion_labels}; and sentiment is from the corresponding sentiment label {sentiment_labels}; 
+            emotion followed by sentiment, separated by a space.
+            
+        """
+
+context_map = {
+    "emotion_prompt": EMOTION_CONTEXT,
+    "sentiment_prompt": SENTIMENT_CONTEXT,
+    "emotion_sentiment_prompt": EMOTION_SENTIMENT_CONTEXT
+}
+
+def generate_context(template, labels):
+    labels_str = " or ".join(sorted(list(labels)))
+    return template.format_map({"labels" : labels_str})
+
+def transform_text(example, text_field, context, include_roles=False):
+    prompt = f"<{example['text']}> = "
+    output = None
+    if include_roles:
+        output =  put_in_role_msg(context, prompt)
+    else:
+        output = context + prompt
+
+    example[text_field] = output
+    return example
 
 def init_model(model_configs):
     
@@ -102,13 +149,23 @@ def load_training_arguments(training_configs):
     
 
 def train(configs, output_dir):
-
     # Load data
+    # TODO: need to map text to the correct prompt
+    # might need to change the label set mentioned in prompt
     train_data = csv_to_dataset(
         configs["dataset"]["train_data"], 
         proportion=configs["data_loader"]["training_proportion"]
     )
     eval_data = csv_to_dataset(configs["dataset"]["validation_data"])
+    labels = set(train_data["label"])
+    labels.update(eval_data["label"])
+    text_field = configs["data_loader"]["text_field"]
+    context = context_map[text_field]
+    context = generate_context(context, labels)
+    train_data = train_data.map(lambda x: transform_text(x, text_field, context, include_roles=False))
+    eval_data = eval_data.map(lambda x: transform_text(x, text_field, context, include_roles=False))
+    # print(train_data[0][text_field])
+    #########################
     print(f"Fine-tuning with {len(train_data)} data.")
     print(f"Validation with {len(eval_data)} data.")
     max_seq_length = configs["data_loader"].get("max_seq_length", 1024)
@@ -157,4 +214,5 @@ if __name__ == "__main__":
     train(configs, output_dir)
     
     
-"""CUDA_VISIBLE_DEVICES=1,2 CUDA_LAUNCH_BLOCKING=1 python train.py -c training_configs/tweet_eval-emotion-1.0-lora-epoch=3.json | tee checkpoint/tweet_eval-emotion-1.0-lora-epoch=3/tweet_eval_emotion.log.txt"""
+"""CUDA_VISIBLE_DEVICES=0,1 python train.py -c training_configs/tweet_eval-sentiment-1.0-lora-epoch=10.json | tee checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10/tweet_eval_sentiment.log.txt"""
+"""CUDA_VISIBLE_DEVICES=2,3 python train.py -c training_configs/tweet_eval-emotion-sentiment-1.0-lora-epoch=5.json | tee checkpoint/tweet_eval-emotion-sentiment-1.0-lora-epoch=5/tweet_eval_sentiment.log.txt"""

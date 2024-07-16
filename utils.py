@@ -18,6 +18,7 @@ access_token = os.getenv("HF_TOKEN1")
 if access_token is None:
     raise ValueError(f"HF access_token is None. Please set up token in system environment.")
 
+global_tokenizer = None
 
 # query with the payload using the specific token number
 # this way we can query with different token when limit is reached :)
@@ -47,62 +48,97 @@ def query(payload, token_num):
             time.sleep(sleep_time)
             sleep_time *= 2
 
-def generate_sentiment_prompt(text, few_shots=True):
-    prompt = """
+EMOTION_CONTEXT = """
+            You are an emotional classifier for online social media text.
+            Analyze the emotion of the text enclosed in angle brackets, 
+            determine if it is happiness, anger, disgust, fear, sadness, surprise or other emotion, and 
+            return the answer as the corresponding emotion label "happiness" or "anger" or "disgust" or "fear" or "sadness" or "surprise" or "other".
+        
+        """
+
+SENTIMENT_CONTEXT = """
+            You are a sentiment classifier for online social media text.
             Analyze the sentiment of the text enclosed in angle brackets, 
             determine if it is positive, neutral, or negative, and 
             return the answer as the corresponding sentiment label "positive" or "neutral" or "negative".
         
         """
-    if few_shots:
-        prompt += """
+
+EMOTION_SENTIMENT_CONTEXT = """
+            You are an emotion and sentiment classifier for online social media text.
+            Analyze the emotion and sentiment of the text enclosed in angle brackets. 
+            For emotion, determine if it is happiness, anger, disgust, fear, sadness, surprise or other emotion.
+            For sentiment, determine if it is positive, neutral, or negative.
+            Return the answer as "emotion" "sentiment" where emotion is from the corresponding emotion label "happiness" or "anger" or "disgust" 
+            or "fear" or "sadness" or "surprise" or "other"; and sentiment is from the corresponding sentiment label "positive" or "neutral" or "negative"; 
+            emotion followed by sentiment, separated by a space.
+            
+            """
+
+EMOTION_EXAMPLES = """
+            For example:
+            <You’ve had over a month to get this finalized ! Why are things delayed ?> = anger
+            <WOW! Drone Delivery Startup, @zipline Raises $25m To Expand Its Operations In Africa> = surprise
+            <The environment can and has survived much hotter conditions.> = other
+        """
+
+SENTIMENT_EXAMPLES = """
             For example: 
             <You’ve had over a month to get this finalized ! Why are things delayed ?> = negative
             <WOW! Drone Delivery Startup, @zipline Raises $25m To Expand Its Operations In Africa> = positive
             <The environment can and has survived much hotter conditions.> = neutral
         
         """
-    prompt += f"<{text}> = ".strip()
-    return prompt
 
-
-def generate_emotion_prompt(text, few_shots=True):
-    prompt = """
-            Analyze the emotion of the text enclosed in angle brackets, 
-            determine if it is happiness, anger, disgust, fear, sadness, surprise or other emotion, and 
-            return the answer as the corresponding emotion label "happiness" or "anger" or "disgust" or "fear" or "sadness" or "surprise" or "other".
-        
-        """
-    if few_shots:
-        prompt += """
-            For example:
-            <You’ve had over a month to get this finalized ! Why are things delayed ?> = anger
-            <WOW! Drone Delivery Startup, @zipline Raises $25m To Expand Its Operations In Africa> = surprise
-            <The environment can and has survived much hotter conditions.> = other
-        """
-    prompt += f"<{text}> = ".strip()
-    return prompt
-
-def generate_emotion_and_sentiment_prompt(text, few_shots=True):
-    prompt = f"""
-            Analyze the emotion and sentiment of the text enclosed in angle brackets. 
-            For emotion, determine if it is happiness, anger, disgust, fear, sadness, surprise or other emotion.
-            For sentiment, determine if it is happiness, anger, disgust, fear, sadness, surprise or other emotion.
-            Return the answer as "emotion" "sentiment" where emotion is from the corresponding emotion label "happiness" or "anger" or "disgust" 
-            or "fear" or "sadness" or "surprise" or "other"; and sentiment is from the corresponding sentiment label "positive" or "neutral" or "negative"; 
-            emotion followed by sentiment, separated by a space.
-            
-            """
-    if few_shots:
-        prompt += """
+EMOTION_SENTIMENT_EXAMPLES = """
             For example:
             <You’ve had over a month to get this finalized ! Why are things delayed ?> = anger negative
             <WOW! Drone Delivery Startup, @zipline Raises $25m To Expand Its Operations In Africa> = surprise positive
             <The environment can and has survived much hotter conditions.> = other neutral
 
-            """
+        """
+
+EMOTION_CONTEXT_WITH_EXAMPLES = EMOTION_CONTEXT + EMOTION_EXAMPLES
+SENTIMENT_CONTEXT_WITH_EXAMPLES = SENTIMENT_CONTEXT + SENTIMENT_EXAMPLES
+EMOTION_SENTIMENT_CONTEXT_WITH_EXAMPLES = EMOTION_SENTIMENT_CONTEXT + EMOTION_SENTIMENT_EXAMPLES
+
+def generate_sentiment_prompt(text, few_shots=True):
+    prompt = SENTIMENT_CONTEXT
+    if few_shots:
+        prompt = SENTIMENT_CONTEXT_WITH_EXAMPLES
     prompt += f"<{text}> = ".strip()
     return prompt
+
+
+def generate_emotion_prompt(text, few_shots=True):
+    prompt = EMOTION_CONTEXT
+    if few_shots:
+        prompt = EMOTION_CONTEXT_WITH_EXAMPLES
+    prompt += f"<{text}> = ".strip()
+    return prompt
+
+def generate_emotion_and_sentiment_prompt(text, few_shots=True):
+    prompt = EMOTION_SENTIMENT_CONTEXT
+    if few_shots:
+        prompt = EMOTION_SENTIMENT_CONTEXT_WITH_EXAMPLES
+    prompt += f"<{text}> = ".strip()
+    return prompt
+
+def put_in_role_msg(system_content, prompt):
+    """
+    Put prompt into the system-user role based format. Resultant response from LLM will be in similar format
+    To extract the reponses, do output[0]["generated_text"][-1]["content"]
+    """
+    message = [
+        # possibly can add in context here? and ask for reasoning too
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": prompt}
+    ]
+    # tokenizer = init_tokenizer("meta-llama/Meta-Llama-3-8B-Instruct", "cache/Meta-Llama-3-8B-Instruct")
+    # print(tokenizer.default_chat_template)
+    message = global_tokenizer.apply_chat_template(message, add_generation_prompt=True)
+
+    return message
 
 def extract_label(generated_text, target_labels):
     """Extract from the generated text the first label that is defined in the set of target labels"""
@@ -115,7 +151,7 @@ def extract_label(generated_text, target_labels):
     
     return None
 
-
+# deprecated, needs updates
 def predict(model, tokenizer, datafile, outfile1, outfile2):
     """
     Predicts using the model and tokenizer, on input dataset datafile and 
@@ -250,18 +286,29 @@ def prepare_dataset(input_path, label_str):
     })
     return ds
 
+def transform_text(example, include_roles=False, few_shots=True):
+    if include_roles:
+        user_msg = f"<{example['text']}> = ".strip()
+        if few_shots:
+            example["emotion_prompt"] = put_in_role_msg(EMOTION_CONTEXT_WITH_EXAMPLES, user_msg)
+            example["sentiment_prompt"] = put_in_role_msg(SENTIMENT_CONTEXT_WITH_EXAMPLES, user_msg)
+            example["emotion_and_sentiment_prompt"] = put_in_role_msg(EMOTION_SENTIMENT_CONTEXT_WITH_EXAMPLES, user_msg)
+        else:
+            example["emotion_prompt"] = put_in_role_msg(EMOTION_CONTEXT, user_msg)
+            example["sentiment_prompt"] = put_in_role_msg(SENTIMENT_CONTEXT, user_msg)
+            example["emotion_and_sentiment_prompt"] = put_in_role_msg(EMOTION_SENTIMENT_CONTEXT, user_msg)
+    else:
+        example["emotion_prompt"] = generate_emotion_prompt(example['text'], few_shots=few_shots)
+        example['sentiment_prompt'] = generate_sentiment_prompt(example['text'], few_shots=few_shots)
+        example["emotion_and_sentiment_prompt"] = generate_emotion_and_sentiment_prompt(example['text'], few_shots=few_shots)
+    return example
+
 def csv_to_dataset(file_path, proportion=1, few_shots=True):
     """
     converts csv file to dataset, with prompt mapped for each text utterance.
     If proportion is given, select that proportion of the dataset from the front.
     """
     dataset = load_dataset('csv', data_files=file_path, split="train")
-    def transform_text(example):
-        example["emotion_prompt"] = generate_emotion_prompt(example['text'], few_shots=few_shots)
-        example['sentiment_prompt'] = generate_sentiment_prompt(example['text'], few_shots=few_shots)
-        example["emotion_and_sentiment_prompt"] = generate_emotion_and_sentiment_prompt(example['text'], few_shots=few_shots)
-        return example
-    dataset = dataset.map(transform_text)
 
     if proportion < 1:
         data_size = int(len(dataset) * proportion)
@@ -282,6 +329,8 @@ def init_tokenizer(model_name, cache_dir, padding="left"):
     )
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = padding  # 　left for inference, right for training
+
+    global_tokenizer = tokenizer
 
     return tokenizer
 
