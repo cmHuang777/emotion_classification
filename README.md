@@ -16,13 +16,13 @@ Base model seems to have the best performance, even though the raw data usually 
 - Model: tweet_eval-emotion-1.0-lora-epoch=10-wrong-labels (Fine-tuned Llama)
 - Configuration: max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True
 - weighted avg_f1-score: 0.73504
-- Classification Report [here]("./output/drone_tweets/tweet_eval-emotion-1.0-lora-epoch=10-wrong-labels/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True/emotion_report.json")
+- Classification Report [here](./output/drone_tweets/tweet_eval-emotion-1.0-lora-epoch=10-wrong-labels/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True/emotion_report.json)
 
 ### Sentiment
 - Model: Meta-Llama-3-8B-Instruct (Base Llama model)
 - Configuration: max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True
 - weighted avg_f1-score: 0.73623
-- Classification Report [here]("./output/drone_tweets/Meta-Llama-3-8B-Instruct/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True/sentiment_report.json")
+- Classification Report [here](./output/drone_tweets/Meta-Llama-3-8B-Instruct/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=True-few_shots=True/sentiment_report.json)
 
 
 ## Other Notes
