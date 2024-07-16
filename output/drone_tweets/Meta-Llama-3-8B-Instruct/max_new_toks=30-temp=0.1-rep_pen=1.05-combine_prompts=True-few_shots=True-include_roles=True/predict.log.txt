@@ -1,0 +1,4 @@
+meta-llama/Meta-Llama-3-8B-Instruct cache/Meta-Llama-3-8B-Instruct
+Loaded 2501 data. Proportion=1
+Total time elapsed generating emotion and sentiment (s): 1839.367036
+Finished writing

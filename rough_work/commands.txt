@@ -1,0 +1,28 @@
+Predicting on drone_tweets:
+CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False --output output/drone_tweets/tweet_eval-emotion-1.0-lora/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=False-few_shots=True
+
+RMB!!! MOVE FILES TO DRONE_TWEETS FROM MASKED_ALL_TWEETS
+
+Predicting on tweet_eval emotion:
+CUDA_VISIBLE_DEVICES=3 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora --test_data data/tweet_eval/emotion/test.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts False --output output/tweet_eval_emotion/tweet_eval-emotion-1.0-lora/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=False-few_shots=True
+
+
+Training:
+tweet_eval-emotion-sentiment-0.2-lora-epoch=5  for 0.2 of train dataset
+CUDA_VISIBLE_DEVICES=0,1 python train.py -c training_configs/tweet_eval-sentiment-0.2-lora-epoch=5.json | tee checkpoint/tweet_eval-sentiment-0.2-lora-epoch=5/tweet_eval_sentiment.log.txt
+CUDA_VISIBLE_DEVICES=2,3 python train.py -c training_configs/tweet_eval-emotion-sentiment-0.2-lora-epoch=5.json | tee checkpoint/tweet_eval-emotion-sentiment-0.2-lora-epoch=5/tweet_eval_sentiment.log.txt
+CUDA_VISIBLE_DEVICES=4,5 python train.py -c training_configs/tweet_eval-sentiment-1.0-lora-epoch=10.json | tee checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10/tweet_eval_sentiment.log.txt
+CUDA_VISIBLE_DEVICES=2,3 python train.py -c training_configs/tweet_eval-emotion-sentiment-1.0-lora-epoch=10.json | tee checkpoint/tweet_eval-emotion-sentiment-1.0-lora-epoch=10/tweet_eval_sentiment.log.txt
+CUDA_VISIBLE_DEVICES=4,5 python train.py -c training_configs/tweet_eval-emotion-1.0-lora-epoch=10.json | tee checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10/tweet_eval_emotion.log.txt
+
+Testing on drone tweets
+CUDA_VISIBLE_DEVICES=2 python predict.py --model checkpoint/tweet_eval-emotion-sentiment-0.2-lora-epoch=5 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False
+CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-emotion-sentiment-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=True
+
+CUDA_VISIBLE_DEVICES=5 python predict.py --model checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False
+CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=True
+
+# testing new role based format:
+CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --combine_prompts=False --include_roles=True
+CUDA_VISIBLE_DEVICES=5 python predict.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --combine_prompts=False --include_roles=True
+CUDA_VISIBLE_DEVICES=4 python predict.py --model meta-llama/Meta-Llama-3-70B-Instruct --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --combine_prompts=True --include_roles=True

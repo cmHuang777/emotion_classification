@@ -1,0 +1,11 @@
+format:
+output/[dataset]/[model_id]/[model_configs]/...
+
+In each output directory, there will be:
+- evaluate.log.txt (detailed logs of evluation results)
+- eavluation reports (which contains the classification report for each predition)
+- predictions for each input (omitted in github)
+- raw output for each input (omitted in github)
+
+reminder:
+model_id => [dataset_trained_on]-[type:emotion/sentiment]-other configs

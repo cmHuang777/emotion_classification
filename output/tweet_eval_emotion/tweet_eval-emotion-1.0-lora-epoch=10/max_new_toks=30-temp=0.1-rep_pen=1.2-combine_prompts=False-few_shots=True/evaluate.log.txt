@@ -1,0 +1,1 @@
+pred_file: output/tweet_eval_emotion/tweet_eval-emotion-1.0-lora-epoch=10/max_new_toks=30-temp=0.1-rep_pen=1.2-combine_prompts=False-few_shots=True/predictions.csv

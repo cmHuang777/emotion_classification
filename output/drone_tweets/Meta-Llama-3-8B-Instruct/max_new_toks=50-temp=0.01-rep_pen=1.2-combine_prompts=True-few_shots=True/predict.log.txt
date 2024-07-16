@@ -1,0 +1,3 @@
+Loaded 2501 data. Proportion=1
+Total time elapsed generating emotion and sentiment (s): 1915.339385
+Finished writing

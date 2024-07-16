@@ -1,0 +1,25 @@
+# exclude all data
+data
+
+# exclude logs
+logs
+
+# exclude env files
+.env
+
+# exclude old output that is not really useful
+old_output
+
+# exclude output that contains original data
+output/*/*/*/*.csv
+
+# exclude cached model
+cache
+
+# exclude pycache and vs code things
+__pycache__
+.vscode
+
+# exclude finetuned model checkpoint
+checkpoint
+

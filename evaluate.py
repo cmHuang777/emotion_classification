@@ -69,6 +69,7 @@ def batch_evaluation():
                     sentiment_report_file = Path(item / "sentiment_report.json")
                                     
                     if pred_file.exists() and not emotion_report_file.exists() and not sentiment_report_file.exists():
+                        sys.stdout = open(item / "evaluate.log.txt", "w")
                         print("pred_file:", pred_file)
                         # continue
                         
@@ -86,6 +87,8 @@ def batch_evaluation():
                         emotion_report = evaluate(golden["voted_emotion"], predictions["llama3_emotion"], emotion_labels)
                         sentiment_report = evaluate(golden["voted_sentiment"], predictions["llama3_sentiment"], sentiment_labels)
                         
+                        sys.stdout.close()
+
                         with open(item / "emotion_report.json", "w") as f2:
                             json.dump(emotion_report, f2, indent=2, ensure_ascii=False)
 
