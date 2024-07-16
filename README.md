@@ -29,8 +29,8 @@ Base model seems to have the best performance, even though the raw data usually 
 
 ### Fine tuning on Tweet Eval data
 #### Emotion Alone
-- the set of emotion labels are different for tweet_eval dataset so 2 approaches were used, 1 using tweet_eval's labels and 1 using drone_reddit's labels
-- When trained on drone_reddit's emotion labels (7 emotions), somehow results are not that bad, emotion has highest score when training on 10 epochs
+- the set of emotion labels are different for tweet_eval dataset so 2 approaches were used, 1 using tweet_eval's labels and 1 using drone_tweets's labels
+- When trained on drone_tweets's emotion labels (7 emotions), somehow results are not that bad, emotion has highest score when training on 10 epochs
 - When trained again with the same set of labels used in tweet_eval dataset (4 emotions):
     - No examples used, no chat template used
     - Results are bad… 
