@@ -4,6 +4,7 @@
     https://huggingface.co/docs/api-inference/parallelism#parallelism-and-batch-jobs
     may be can sleep when rate limit reached
 """
+
 import csv
 import os
 import requests
@@ -13,16 +14,20 @@ from dotenv import load_dotenv
 load_dotenv()
 access_token = os.getenv("HF_TOKEN")
 if access_token is None:
-    raise ValueError(f"HF access_token is None. Please set up token in system environment.")
+    raise ValueError(
+        f"HF access_token is None. Please set up token in system environment."
+    )
 
-API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+API_URL = (
+    "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+)
 headers = {"Authorization": f"Bearer {access_token}"}
 
 
 def query(payload):
-	response = requests.post(API_URL, headers=headers, json=payload)
-	return response.json()
-	
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
+
 
 def generate_sentiment_prompt(text):
     return f"""
@@ -49,6 +54,7 @@ def generate_emotion_prompt(text):
 
             <{text}> = """.strip()
 
+
 def generate_emotion_and_sentiment_prompt(text):
     return f"""
             Analyze the emotion and sentiment of the text enclosed in angle brackets. 
@@ -65,13 +71,14 @@ def generate_emotion_and_sentiment_prompt(text):
 
             <{text}> = """.strip()
 
+
 def extract_label(generated_text, target_labels):
     """Extract from the generated text the first label that is defined in the set of target labels"""
     tokens = generated_text.split()
     for token in tokens:
         if token.lower() in target_labels:
             return token.lower()
-    
+
     return None
 
 
@@ -81,41 +88,61 @@ if __name__ == "__main__":
     # outfile = datafile.replace("data/", "output/")
     outfile1 = "output/drone/all_tweets_llama3.csv"
     outfile2 = "output/drone/all_tweets_llama3_raw.csv"
-    
-    
-    with open(datafile, 'r', newline='') as infile, open(outfile1, 'w', newline='') as out_file1, open(outfile2, 'w', newline='') as out_file2:
+
+    with open(datafile, "r", newline="") as infile, open(
+        outfile1, "w", newline=""
+    ) as out_file1, open(outfile2, "w", newline="") as out_file2:
         csv_reader = csv.DictReader(infile)
-        
+
         fieldnames1 = csv_reader.fieldnames + ["llama3_sentiment", "llama3_emotion"]
         csv_writer1 = csv.DictWriter(out_file1, fieldnames=fieldnames1)
         csv_writer1.writeheader()
 
-        fieldnames2 = csv_reader.fieldnames + ["llama3_raw"]  # changed from 2 separate columns for emotion and sentiment
+        fieldnames2 = csv_reader.fieldnames + [
+            "llama3_raw"
+        ]  # changed from 2 separate columns for emotion and sentiment
         csv_writer2 = csv.DictWriter(out_file2, fieldnames=fieldnames2)
         csv_writer2.writeheader()
-        
-        
+
         start_time = datetime.now()
         last_time = start_time
         counter = 2501
-        
+
         for row in csv_reader:
-            if counter == 0: break
-            
-            prompt = generate_emotion_and_sentiment_prompt(row['text'])
+            if counter == 0:
+                break
+
+            prompt = generate_emotion_and_sentiment_prompt(row["text"])
             llama3_sentiment = None
             llama3_sentiment_raw = None
             llama3_emotion = None
             llama3_emotion_raw = None
             output = None
-            while (llama3_sentiment is None or llama3_emotion is None) and ((datetime.now() - last_time).total_seconds() < 25):
-                while not output and ((datetime.now() - last_time).total_seconds() < 15):
+            while (llama3_sentiment is None or llama3_emotion is None) and (
+                (datetime.now() - last_time).total_seconds() < 25
+            ):
+                while not output and (
+                    (datetime.now() - last_time).total_seconds() < 15
+                ):
                     output = query({"inputs": prompt, "options": {"use_cache": False}})
                     print(output)
                 raw = output[0]["generated_text"].split(prompt)[-1]
-                llama3_sentiment = extract_label(raw, target_labels=["positive", "negative", "neutral"])
-                llama3_emotion = extract_label(raw, target_labels=["happiness", "anger", "disgust", "fear", "sadness", "surprise", "other"])
-                
+                llama3_sentiment = extract_label(
+                    raw, target_labels=["positive", "negative", "neutral"]
+                )
+                llama3_emotion = extract_label(
+                    raw,
+                    target_labels=[
+                        "happiness",
+                        "anger",
+                        "disgust",
+                        "fear",
+                        "sadness",
+                        "surprise",
+                        "other",
+                    ],
+                )
+
                 print(output[0]["generated_text"])
                 print(llama3_sentiment)
                 print(llama3_emotion)
@@ -151,20 +178,20 @@ if __name__ == "__main__":
             row["llama3_emotion"] = llama3_emotion
             # print(row)
             csv_writer1.writerow(row)
-            
+
             row.pop("llama3_sentiment", None)
             row.pop("llama3_emotion", None)
             row["llama3_raw"] = raw
             # row["llama3_sentiment_raw"] = llama3_sentiment_raw
             # row["llama3_emotion_raw"] = llama3_emotion_raw
             csv_writer2.writerow(row)
-            
-            t_delta = (datetime.now()-last_time).total_seconds()*1000
+
+            t_delta = (datetime.now() - last_time).total_seconds() * 1000
             print("Time elapsed (ms): ", t_delta)
             last_time = datetime.now()
-            
+
             counter -= 1
             print("======================================")
             # break
-            
+
         print(f"Total time elapsed (s): {(last_time-start_time).total_seconds()}")

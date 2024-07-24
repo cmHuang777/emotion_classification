@@ -7,11 +7,11 @@ metrics = {
     "tweet_eval": ["weighted avg", "f1-score"],
     "drone_tweets": ["weighted avg", "f1-score"],
     "drone_reddit": ["weighted avg", "f1-score"],
-    "energy_reddit": ["weighted avg", "f1-score"]
+    "energy_reddit": ["weighted avg", "f1-score"],
 }
 
 if __name__ == "__main__":
-    
+
     emotion_output_filepath = Path("output/consolidated_emotion_report.csv")
     sentiment_output_filepath = Path("output/consolidated_sentiment_report.csv")
 
@@ -21,18 +21,18 @@ if __name__ == "__main__":
     for dataset_dir in Path("./output").iterdir():
         if dataset_dir.is_dir():
             dataset = dataset_dir.name
-            if dataset not in metrics.keys(): 
+            if dataset not in metrics.keys():
                 continue
 
             for model_dir in dataset_dir.iterdir():
                 model_id = model_dir.name
-            
+
                 for item in model_dir.iterdir():
                     generation_config = item.name
-                    
-                    emotion_report_file = Path(item / "emotion_report.json")   
-                    sentiment_report_file = Path(item / "sentiment_report.json")   
-                    
+
+                    emotion_report_file = Path(item / "emotion_report.json")
+                    sentiment_report_file = Path(item / "sentiment_report.json")
+
                     if emotion_report_file.exists():
                         report = json.load(open(emotion_report_file))
                         primary_metric = metrics[dataset]
@@ -41,15 +41,17 @@ if __name__ == "__main__":
                         print("model_id:", model_id)
                         print("generation_config:", generation_config)
                         print("score:", score)
-                        
+
                         # Overwrite old record if already exists
-                        consolidated_emotion_report_list.append({
-                            "dataset": dataset, 
-                            "model_id": model_id,
-                            "generation_config": generation_config,
-                            "metric": "_".join(primary_metric), 
-                            "score": round(score, 5)
-                        })
+                        consolidated_emotion_report_list.append(
+                            {
+                                "dataset": dataset,
+                                "model_id": model_id,
+                                "generation_config": generation_config,
+                                "metric": "_".join(primary_metric),
+                                "score": round(score, 5),
+                            }
+                        )
 
                     if sentiment_report_file.exists():
                         report = json.load(open(sentiment_report_file))
@@ -59,30 +61,36 @@ if __name__ == "__main__":
                         print("model_id:", model_id)
                         print("generation_config:", generation_config)
                         print("score:", score)
-                        
+
                         # Overwrite old record if already exists
-                        consolidated_sentiment_report_list.append({
-                            "dataset": dataset, 
-                            "model_id": model_id,
-                            "generation_config": generation_config,
-                            "metric": "_".join(primary_metric), 
-                            "score": round(score, 5)
-                        })
+                        consolidated_sentiment_report_list.append(
+                            {
+                                "dataset": dataset,
+                                "model_id": model_id,
+                                "generation_config": generation_config,
+                                "metric": "_".join(primary_metric),
+                                "score": round(score, 5),
+                            }
+                        )
 
     # Sort the consolidated report
-    consolidated_emotion_report_sorted = sorted(consolidated_emotion_report_list, key=lambda x: (x["dataset"], -x["score"]))
-    consolidated_sentiment_report_sorted = sorted(consolidated_sentiment_report_list, key=lambda x: (x["dataset"], -x["score"]))
+    consolidated_emotion_report_sorted = sorted(
+        consolidated_emotion_report_list, key=lambda x: (x["dataset"], -x["score"])
+    )
+    consolidated_sentiment_report_sorted = sorted(
+        consolidated_sentiment_report_list, key=lambda x: (x["dataset"], -x["score"])
+    )
     # print(consolidated_report_sorted)
-    
+
     pd.DataFrame(consolidated_emotion_report_sorted).to_csv(
-        emotion_output_filepath, 
-        columns=["dataset", "model_id", "generation_config", "metric", "score"]
+        emotion_output_filepath,
+        columns=["dataset", "model_id", "generation_config", "metric", "score"],
     )
     print(f"Done. Emotion report saved to {emotion_output_filepath}")
 
     pd.DataFrame(consolidated_sentiment_report_sorted).to_csv(
-        sentiment_output_filepath, 
-        columns=["dataset", "model_id", "generation_config", "metric", "score"]
+        sentiment_output_filepath,
+        columns=["dataset", "model_id", "generation_config", "metric", "score"],
     )
     print(f"Done. Sentiment report saved to {sentiment_output_filepath}")
 
