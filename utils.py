@@ -8,10 +8,8 @@ import csv
 
 from string import punctuation
 from datasets import Dataset, DatasetDict, load_dataset
-from transformers import AutoTokenizer, pipeline
-from transformers.pipelines.pt_utils import KeyDataset
+from transformers import AutoTokenizer
 from sklearn.model_selection import train_test_split
-from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -136,10 +134,10 @@ def generate_emotion_and_sentiment_prompt(text, few_shots=True):
     return prompt
 
 
-def put_in_role_msg(system_content, prompt):
+def put_in_role_msg(system_content, prompt, tokenizer=global_tokenizer):
     """
-    Put prompt into the system-user role based format. Resultant response from LLM will be in similar format
-    To extract the reponses, do output[0]["generated_text"][-1]["content"]
+    Put prompt into the system-user role based format.
+    To extract the reponses, do output[0]["generated_text"]
     """
     message = [
         # possibly can add in context here? and ask for reasoning too
@@ -148,8 +146,9 @@ def put_in_role_msg(system_content, prompt):
     ]
     # tokenizer = init_tokenizer("meta-llama/Meta-Llama-3-8B-Instruct", "cache/Meta-Llama-3-8B-Instruct")
     # print(tokenizer.default_chat_template)
-    message = global_tokenizer.apply_chat_template(message, add_generation_prompt=True)
-
+    message = tokenizer.apply_chat_template(
+        message, tokenize=False, add_generation_prompt=True
+    )
     return message
 
 

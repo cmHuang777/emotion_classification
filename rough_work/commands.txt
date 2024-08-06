@@ -30,4 +30,4 @@ CUDA_VISIBLE_DEVICES=4 python predict.py --model meta-llama/Meta-Llama-3-70B-Ins
 CUDA_VISIBLE_DEVICES=5 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --combine_prompts=False --include_roles=True
 CUDA_VISIBLE_DEVICES=4 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --combine_prompts=False --include_roles=False
 
-CUDA_VISIBLE_DEVICES=5 python predict.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data filtered_crisis.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --include_roles=True
+CUDA_VISIBLE_DEVICES=6 python predict_class.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data full_crisis.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 50 --include_roles=True

@@ -1,0 +1,11 @@
+{
+    "dataset": "./crisis_sample_golden_classes.csv",
+    "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "output_dir": "",
+    "max_new_tokens": 50,
+    "temperature": 0.1,
+    "repetition_penalty": 1.2,
+    "include_roles": true,
+    "few_shots": 0,
+    "combine_prompts": true
+}

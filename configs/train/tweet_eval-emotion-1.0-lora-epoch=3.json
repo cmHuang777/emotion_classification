@@ -1,0 +1,58 @@
+{
+    "dataset": {
+        "train_file": "data/tweet_eval/emotion/train.csv",
+        "validation_file": "data/tweet_eval/emotion/validation.csv",
+        "test_file": "data/tweet_eval/emotion/test.csv"
+    },
+    "data_loader": {
+        "training_proportion": 1.0,
+        "text_field": "emotion_prompt",
+        "max_seq_length": 1024
+    },
+    "model": {
+        "model_name_or_path": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "model_dir": null,
+        "cache_dir": "cache/Meta-Llama-3-8B-Instruct",
+        "compute_dtype": "bfloat16",
+        "train_padding": "right",
+        "infer_padding": "left",
+        "quantization": false,
+        "load_in_8bit": false,
+        "load_in_4bit": false,
+        "llm_int8_has_fp16_weight": false,
+        "bnb_4bit_quant_type": "nf4",
+        "bnb_4bit_compute_dtype": "float16",
+        "bnb_4bit_use_double_quant": false
+    },
+    "peft": {
+        "enable_peft": false,
+        "task_type": "CAUSAL_LM",
+        "peft_type": "lora",
+        "lora_alpha": 16,
+        "lora_dropout": 0.1,
+        "r": 64,
+        "bias": "none",
+        "target_modules": null
+    },
+    "training": {
+        "num_train_epochs": 3.0,
+        "per_device_train_batch_size": 1,
+        "gradient_accumulation_steps": 8,
+        "learning_rate": 2e-4,
+        "weight_decay": 0.001,
+        "optim": "paged_adamw_32bit",
+        "fp16": true,
+        "bf16": false,
+        "max_grad_norm": 0.3,
+        "max_steps": -1,
+        "warmup_ratio": 0.03,
+        "group_by_length": true,
+        "lr_scheduler_type": "cosine",
+        "eval_strategy": "epoch",
+        "save_steps": 0,
+        "logging_steps": 25,
+        "report_to": "tensorboard",
+        "output_dir": "logs/",
+        "seed": 88
+    }
+}

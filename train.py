@@ -3,23 +3,34 @@ Use padding_side = "right" for training.
 Use padding_side = "left" for generation.
 """
 
-import json
+import logging
+import os
+import sys
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "3,4,5"
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+import datasets
 import torch
-
-from argparse import ArgumentParser
+import transformers
 from pathlib import Path
-
 from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
+    MODEL_FOR_MASKED_LM_MAPPING,
     BitsAndBytesConfig,
     TrainingArguments,
+    HfArgumentParser,
+    set_seed,
 )
-from trl import SFTTrainer
+from trl import SFTConfig, SFTTrainer
 from peft import LoraConfig
 from peft.utils.constants import TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING
 
-from utils import csv_to_dataset, put_in_role_msg
+from args import Configs
+from utils import csv_to_dataset, init_tokenizer, put_in_role_msg
+
+
+logger = logging.getLogger(__name__)
+MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())
+MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
 EMOTION_CONTEXT = """
             You are an emotional classifier for online social media text.
@@ -59,54 +70,73 @@ def generate_context(template, labels):
     return template.format_map({"labels": labels_str})
 
 
-def transform_text(example, text_field, context, include_roles=False):
+def transform_text(example, text_field, context, include_roles=False, tokenizer=None):
     prompt = f"<{example['text']}> = "
     output = None
     if include_roles:
-        output = put_in_role_msg(context, prompt)
+        output = put_in_role_msg(context, prompt, tokenizer=tokenizer)
     else:
         output = context + prompt
 
     example[text_field] = output
+    # print(example)
     return example
 
 
 def init_model(model_configs):
-
     model_name_or_path = model_configs.get("model_dir", None)
     if model_name_or_path is None:
-        model_name_or_path = model_configs.get("model_name", None)
-
+        model_name_or_path = model_configs.get("model_name_or_path", None)
+    do_quantization = model_configs["quantization"]
+    is_adapter_model = False
     bnb_config = None
-    if model_configs.get("quantization", None) and model_configs.get(
-        "load_in_4bit", None
-    ):
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=model_configs.get("load_in_4bit", True),
-            bnb_4bit_compute_dtype=model_configs.get(
-                "bnb_4bit_compute_dtype", getattr(torch, "float16")
-            ),
-            bnb_4bit_quant_type=model_configs.get("bnb_4bit_quant_type", "nf4"),
-            bnb_4bit_use_double_quant=model_configs.get(
-                "bnb_4bit_use_double_quant", False
-            ),
-        )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name_or_path,
-        device_map="auto",
-        quantization_config=bnb_config,
-    )
+    if Path(f"checkpoint/{model_name_or_path}/adapter_config.json").exists():
+        is_adapter_model = True
+
+    if is_adapter_model and "4bit" in model_name_or_path:
+        do_quantization = True
+
+    if do_quantization:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=model_configs["load_in_4bit"],
+            load_in_8bit=model_configs["load_in_8bit"],
+            bnb_4bit_quant_type=model_configs["bnb_4bit_quant_type"],
+            bnb_4bit_compute_dtype=getattr(
+                torch, model_configs["bnb_4_bit_compute_dtype"]
+            ),
+            bnb_4bit_use_double_quant=False,  # uses additional quatization to save more ram
+        )
+        print(f"Model will be quantized.")
+
+    # Load Adapter model
+    if is_adapter_model:
+        adapter_config = PeftConfig.from_pretrained(model_name_or_path)
+        model = LlamaForCausalLM.from_pretrained(
+            adapter_config.base_model_name_or_path,
+            cache_dir=model_configs["cache_dir"],
+            device_map="auto",
+            torch_dtype=getattr(torch, model_configs["compute_dtype"]),
+            quantization_config=bnb_config,
+        )
+        model = PeftModel.from_pretrained(model, model_name_or_path, device_map="auto")
+
+    # Load full-paramter model
+    else:
+        model = LlamaForCausalLM.from_pretrained(
+            model_name_or_path,
+            cache_dir=model_configs["cache_dir"],
+            device_map="auto",
+            torch_dtype=getattr(torch, model_configs["compute_dtype"]),
+            quantization_config=bnb_config,
+            token=access_token,
+        )
 
     model.config.use_cache = False
     model.config.pretraining_tp = 1
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name_or_path,
-        trust_remote_code=True,
-    )
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = model_configs.get("train_padding", "right")
+    padding_side = model_configs.get("train_padding", "right")
+    tokenizer = init_tokenizer(model_name_or_path, None, padding=padding_side)
 
     return model, tokenizer
 
@@ -120,89 +150,72 @@ def init_peft(peft_configs):
 
     if peft_configs["enable_peft"] and peft_configs["peft_type"] == "lora":
         peft_config = LoraConfig(
-            lora_alpha=configs.get("lora_alpha", 16),
-            lora_dropout=configs.get("lora_dropout", 0.1),
-            r=configs.get("r", 64),
-            bias=configs.get("bias", "none"),
-            task_type=configs.get("task_type", "CAUSAL_LM"),
-            target_modules=configs.get("target_modules", target_modules),
+            lora_alpha=peft_configs.get("lora_alpha", 16),
+            lora_dropout=peft_configs.get("lora_dropout", 0.1),
+            r=peft_configs.get("r", 64),
+            bias=peft_configs.get("bias", "none"),
+            task_type=peft_configs.get("task_type", "CAUSAL_LM"),
+            target_modules=peft_configs.get("target_modules", target_modules),
         )
 
     return peft_config
 
 
-def load_training_arguments(training_configs):
-    training_arguments = TrainingArguments(
-        num_train_epochs=training_configs.get("epoch", 5),
-        per_device_train_batch_size=training_configs.get(
-            "per_device_train_batch_size", 1
-        ),
-        gradient_accumulation_steps=training_configs.get(
-            "gradient_accumulation_steps", 8
-        ),  # 4
-        optim=training_configs.get("optimizer", "paged_adamw_32bit"),
-        adam_epsilon=training_configs.get("adam_epsilon", 1e-7),
-        save_steps=training_configs.get("save_steps", 0),
-        logging_steps=training_configs.get("logging_steps", 25),
-        learning_rate=training_configs.get("learning_rate", 2e-4),
-        weight_decay=training_configs.get("weight_decay", 0.001),
-        fp16=training_configs.get("fp16", False),
-        bf16=training_configs.get("bf16", True),
-        max_grad_norm=training_configs.get("max_grad_norm", 0.3),
-        max_steps=training_configs.get("max_steps", -1),
-        warmup_ratio=training_configs.get("warmup_ratio", 0.03),
-        group_by_length=training_configs.get("group_by_length", True),
-        lr_scheduler_type=training_configs.get("lr_scheduler_type", "cosine"),
-        report_to=training_configs.get("report_to", "tensorboard"),
-        output_dir=training_configs.get("output_dir", "logs"),
-        evaluation_strategy=training_configs.get("evaluation_strategy", "epoch"),
-    )
-
-    return training_arguments
-
-
 def train(configs, output_dir):
-    # Load data
-    # TODO: need to map text to the correct prompt
-    # might need to change the label set mentioned in prompt
+    model_args = configs.model
+    data_args = configs.dataset
+    data_loader_args = configs.data_loader
+    peft_args = configs.peft
+    training_args = configs.training
     train_data = csv_to_dataset(
-        configs["dataset"]["train_data"],
-        proportion=configs["data_loader"]["training_proportion"],
+        data_args["train_file"],
+        proportion=data_loader_args["training_proportion"],
     )
-    eval_data = csv_to_dataset(configs["dataset"]["validation_data"])
+    eval_data = csv_to_dataset(data_args["validation_file"])
     labels = set(train_data["label"])
     labels.update(eval_data["label"])
-    text_field = configs["data_loader"]["text_field"]
-    context = context_map[text_field]
-    context = generate_context(context, labels)
-    train_data = train_data.map(
-        lambda x: transform_text(x, text_field, context, include_roles=False)
-    )
-    eval_data = eval_data.map(
-        lambda x: transform_text(x, text_field, context, include_roles=False)
-    )
-
-    print(f"Fine-tuning with {len(train_data)} data.")
-    print(f"Validation with {len(eval_data)} data.")
-    max_seq_length = configs["data_loader"].get("max_seq_length", 1024)
-    text_field = configs["data_loader"].get("text_field")
+    text_field = data_loader_args["text_field"]
     if not text_field:
         raise ValueError("text_field in training config cannot be empty or null")
 
-    # Init model, trainer
-    model, tokenizer = init_model(configs["model"])
-    peft_config = init_peft(configs["peft"])
-    training_arguments = load_training_arguments(configs["training"])
+    context = context_map[text_field]
+    context = generate_context(context, labels)
+    print(f"Fine-tuning with {len(train_data)} data.")
+    print(f"Validation with {len(eval_data)} data.")
+
+    # init model and tokenizer
+    model, tokenizer = init_model(model_args)
+
+    train_data = train_data.map(
+        lambda x: transform_text(
+            x, text_field, context, include_roles=True, tokenizer=tokenizer
+        )
+    )
+    print(train_data[-1][text_field])
+    eval_data = eval_data.map(
+        lambda x: transform_text(
+            x, text_field, context, include_roles=True, tokenizer=tokenizer
+        )
+    )
+
+    max_seq_length = data_loader_args.get("max_seq_length", 1024)
+
+    print(train_data[-1][text_field])
+    # Init trainer
+    peft_config = init_peft(peft_args)
+    sft_config = SFTConfig(
+        **training_args,
+        packing=False,
+        max_seq_length=max_seq_length,
+        dataset_text_field=text_field,
+    )
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=train_data,
         eval_dataset=eval_data,
-        dataset_text_field=text_field,
         peft_config=peft_config,
-        args=training_arguments,
-        packing=False,
-        max_seq_length=max_seq_length,
+        args=sft_config,
     )
 
     trainer.train()
@@ -214,17 +227,73 @@ def train(configs, output_dir):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Generate predictions with model")
-    parser.add_argument("-c", type=str, required=True, help="Config file path")
-    parser.add_argument("-s", type=str, help="Serialization folder")
-    args = parser.parse_args()
+    parser = HfArgumentParser(Configs)
+    training_parser = HfArgumentParser(TrainingArguments)
+    configs = None
+    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+        # If we pass only one argument to the script and it's the path to a json file,
+        # let's parse it to get our arguments.
+        (configs,) = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
 
-    configs = json.load(open(args.c))
-    config_id = Path(args.c).stem
-    output_dir = args.s if args.s else Path("checkpoint/") / config_id
+    else:
+        (configs,) = parser.parse_args_into_dataclasses()
 
-    print(f"Training with config file: {args.c}")
-    print("Configurations:\n" + json.dumps(configs, indent=2))
+    model_args = configs.model
+    data_args = configs.dataset
+    data_loader_args = configs.data_loader
+    peft_args = configs.peft
+    training_args = configs.training
+    # trainging_args = training_parser.parse_dict(training_args)
+
+    print("Model Args: \n", model_args)
+    print("Data Args: \n", data_args)
+    print("Training Args: \n", training_args)
+    print("Training arguments classes", training_args.__class__.__name__)
+    print("Peft Args: \n", peft_args)
+    print("Data Loader Args: \n", data_loader_args)
+
+    # if training_args.should_log:
+    # The default of training_args.log_level is passive, so we set log level at info here to have that default.
+    transformers.utils.logging.set_verbosity_info()
+
+    # Setup logging
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    log_level = logging.WARNING
+    logger.setLevel(log_level)
+    datasets.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.set_verbosity(log_level)
+    transformers.utils.logging.enable_default_handler()
+    transformers.utils.logging.enable_explicit_format()
+
+    # Log on each process the small summary:
+    # logger.warning(
+    #     f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}, "
+    #     + f"distributed training: {training_args.parallel_mode.value == 'distributed'}, 16-bits training: {training_args.fp16}"
+    # )
+    # Set the verbosity to info of the Transformers logger (on main process only):
+    logger.info(f"Training/evaluation parameters {training_args}")
+    # Set seed before initializing model.
+    set_seed(training_args["seed"])
+
+    config_id = Path(sys.argv[1]).stem
+    output_dir = Path("checkpoint/") / config_id
+
+    # parser = ArgumentParser(description="Generate predictions with model")
+    # parser.add_argument("-c", type=str, required=True, help="Config file path")
+    # parser.add_argument("-s", type=str, help="Serialization folder")
+    # args = parser.parse_args()
+
+    # configs = json.load(open(args.c))
+    # config_id = Path(args.c).stem
+    # output_dir = args.s if args.s else Path("checkpoint/") / config_id
+
+    print(f"Training with config file: {sys.argv[1]}")
+    # print("Configurations:\n" + json.dumps(configs, indent=2))
     print(f"Checkpoint will be saved at: {output_dir}")
 
     train(configs, output_dir)
@@ -232,3 +301,4 @@ if __name__ == "__main__":
 
 """CUDA_VISIBLE_DEVICES=0,1 python train.py -c training_configs/tweet_eval-sentiment-1.0-lora-epoch=10.json | tee checkpoint/tweet_eval-sentiment-1.0-lora-epoch=10/tweet_eval_sentiment.log.txt"""
 """CUDA_VISIBLE_DEVICES=2,3 python train.py -c training_configs/tweet_eval-emotion-sentiment-1.0-lora-epoch=5.json | tee checkpoint/tweet_eval-emotion-sentiment-1.0-lora-epoch=5/tweet_eval_sentiment.log.txt"""
+"""CUDA_VISIBLE_DEVICES=3,4,5 python train.py ./configs/train/tweet_eval-emotion-1.0-lora-epoch=3.json"""

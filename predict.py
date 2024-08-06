@@ -1,12 +1,15 @@
+import os
+import sys
 import torch
 
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 from peft import PeftModel, PeftConfig
-from transformers import (LlamaForCausalLM, BitsAndBytesConfig, pipeline)
+from transformers import (LlamaForCausalLM, BitsAndBytesConfig, HfArgumentParser, pipeline)
 from transformers.pipelines.pt_utils import KeyDataset
 
+from args import InferenceConfigs
 from utils import (csv_to_dataset, get_dataset_name, init_tokenizer,
                    extract_label, pred_arrays_to_csv, str2bool, transform_text)
 
@@ -165,41 +168,30 @@ def predict(pipe, ds, combine_prompts=True):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Generate predictions with model")
-    parser.add_argument("--model", type=str, required=True,
-                        help="Model serialization folder")
-    parser.add_argument("--test_data", type=str,
-                        required=True, help="Test data path")
-    parser.add_argument("--output", type=str, help="Output folder")
-    parser.add_argument("--max_new_tokens", type=int,
-                        help="Max number of new generated tokens")
-    parser.add_argument("--temperature", type=float,
-                        help="Temperature for text generation")
-    parser.add_argument("--repetition_penalty", type=float,
-                        help="Penalty for repeated text in text generated")
-    parser.add_argument("--combine_prompts", type=str2bool, nargs='?',
-                        const=True, default=True, help="Whether to combine emotion and sentiment prompt as a single prompt")
-    parser.add_argument("--few_shots", type=str2bool, nargs='?',
-                        const=True, default=True, help="Whether to use 3 examples in the prompts")
-    parser.add_argument("--include_roles", type=str2bool, nargs='?',
-                        const=True, default=False, help="Whether to use system-user roles format for prompting")
-    args = parser.parse_args()
+    parser = HfArgumentParser(InferenceConfigs)
+    configs = None
+    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+        # If we pass only one argument to the script and it's the path to a json file,
+        # let's parse it to get our arguments.
+        (configs,) = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
 
-    model_dir = Path(args.model)
+    else:
+        (configs,) = parser.parse_args_into_dataclasses()
+
+    model_dir = Path(configs.model)
     model_id = model_dir.name
-    test_path = args.test_data
-    max_new_tokens = args.max_new_tokens if args.max_new_tokens else 50
+    test_path = configs.dataset
+    max_new_tokens = configs.max_new_tokens
     # deafult temperature=0.6 in generation config
-    temperature = args.temperature if args.temperature else 0.6
+    temperature = configs.temperature
     # default 1 gives no penalty for repetition
-    repetition_penalty = args.repetition_penalty if args.repetition_penalty else 1
-    combine_prompts = args.combine_prompts if args.combine_prompts is not None else True
-    few_shots = args.few_shots if args.few_shots is not None else True
-    include_roles = args.include_roles if args.include_roles is not None else False
-    # print(args)
+    repetition_penalty = configs.repetition_penalty
+    include_roles = configs.include_roles
+    few_shots = configs.few_shots
+    combine_prompts = configs.combine_prompts
 
-    if args.output:
-        output_dir = Path(args.output)
+    if configs.output_dir:
+        output_dir = Path(configs.output_dir)
     else:
         # output_dir = model_dir
         dataset_name = get_dataset_name(test_path)
@@ -230,3 +222,4 @@ if __name__ == "__main__":
 
 # CUDA_VISIBLE_DEVICES=5 python predict.py --model meta-llama/Meta-Llama-3-8B-Instruct --test_data data/drone/masked_all_tweets.csv
 # CUDA_VISIBLE_DEVICES=5 python predict.py --model checkpoint/tweet_eval-emotion-1.0-lora-epoch=10 --test_data data/drone/masked_all_tweets.csv --repetition_penalty 1.2 --temperature 0.1 --max_new_token 30 --combine_prompts=False
+# CUDA_VISIBLE_DEVICES=5 python predict.py ./configs/inference/template.json
